@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from typing import Dict, Optional
 
 from app.providers.akshare_provider import AkshareHoldingsProvider, is_available as akshare_available
@@ -19,6 +20,7 @@ HOLDINGS_PROVIDER = os.getenv("HOLDINGS_PROVIDER", "auto").strip().lower()
 QUOTE_PROVIDER = os.getenv("QUOTE_PROVIDER", "auto").strip().lower()
 INDEX_PROVIDER = os.getenv("INDEX_PROVIDER", "mock").strip().lower()
 GOLD_PROVIDER = os.getenv("GOLD_PROVIDER", "mock").strip().lower()
+logger = logging.getLogger(__name__)
 
 
 def get_holdings_provider() -> HoldingsProvider:
@@ -49,12 +51,16 @@ def get_quote_provider(quote_cache: Optional[Dict[str, Optional[float]]] = None)
 
 
 def get_index_provider() -> IndexProvider:
-    # 当前仅 mock
-    _ = INDEX_PROVIDER
-    return MockIndexProvider()
+    if INDEX_PROVIDER == "mock":
+        return MockIndexProvider()
+
+    logger.warning("INDEX_PROVIDER=%s 暂不支持，回退为 mock", INDEX_PROVIDER)
+    return MockIndexProvider(status_tag=f"fallback:{INDEX_PROVIDER}")
 
 
 def get_gold_provider() -> GoldProvider:
-    # 当前仅 mock
-    _ = GOLD_PROVIDER
-    return MockGoldProvider()
+    if GOLD_PROVIDER == "mock":
+        return MockGoldProvider()
+
+    logger.warning("GOLD_PROVIDER=%s 暂不支持，回退为 mock", GOLD_PROVIDER)
+    return MockGoldProvider(status_tag=f"fallback:{GOLD_PROVIDER}")

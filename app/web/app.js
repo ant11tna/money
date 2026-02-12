@@ -254,8 +254,13 @@ function renderNavCanvas(rows) {
   const ctx = canvas.getContext('2d');
   if (!ctx || !rows || rows.length === 0) return;
 
-  const w = canvas.width;
-  const h = canvas.height;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || canvas.width;
+  const h = canvas.clientHeight || canvas.height;
+  canvas.width = Math.max(1, Math.floor(w * dpr));
+  canvas.height = Math.max(1, Math.floor(h * dpr));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
   const pad = 30;
 
   ctx.clearRect(0, 0, w, h);

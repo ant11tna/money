@@ -24,8 +24,14 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 - `HOLDINGS_PROVIDER=auto|akshare|eastmoney|mock`
 - `QUOTE_PROVIDER=auto|eastmoney|mock`
-- `INDEX_PROVIDER=mock`（当前默认 mock）
-- `GOLD_PROVIDER=mock`（当前默认 mock）
+- `INDEX_PROVIDER=mock`（当前默认 mock，非 mock 当前会自动回退并标注 fallback）
+- `GOLD_PROVIDER=mock`（当前默认 mock，非 mock 当前会自动回退并标注 fallback）
+
+示例：
+
+```bash
+INDEX_PROVIDER=mock GOLD_PROVIDER=mock
+```
 
 ### auto 规则
 
@@ -141,6 +147,13 @@ curl -s "http://127.0.0.1:8000/api/gold/realtime"
 - summary 表格新增“详情”按钮
 - 点击弹窗，包含 Tabs：历史业绩 / 阶段涨幅 / 历史净值 / 持仓详情
 - 历史净值使用原生 `canvas` 折线图
+
+## Tabs 切换展示验证（基金详情弹窗）
+
+1. 点击估值结果中的“详情”按钮，弹出基金详情窗口。
+2. 依次点击「历史业绩 / 阶段涨幅 / 历史净值 / 持仓详情」四个 tab。
+3. 验证每个 tab 内容均可正常展示，切回「历史净值」时折线图应保持清晰（已按 devicePixelRatio 适配 canvas 渲染）。
+4. 可重复切换多次，确认没有空白或模糊重绘。
 
 ## 阶段 E 验收命令
 
