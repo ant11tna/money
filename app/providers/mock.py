@@ -63,14 +63,28 @@ class MockIndexProvider(IndexProvider):
             ("DJI", "道琼斯"),
             ("IXIC", "纳斯达克"),
             ("GSPC", "标普500"),
+            ("RUT", "罗素2000"),
         ],
     }
 
-    def get_indexes(self, market: str) -> List[IndexQuote]:
-        normalized = (market or "cn").lower()
-        rows = self._INDEXES.get(normalized, self._INDEXES["cn"])
-        now = int(time.time())
+    def __init__(self, *, fallback_market: str = "cn", status_tag: str = "mock", return_empty_on_unknown: bool = True) -> None:
+        self.fallback_market = (fallback_market or "cn").lower()
+        self.status_tag = status_tag
+        self.return_empty_on_unknown = return_empty_on_unknown
 
+    def get_indexes(self, market: str) -> List[IndexQuote]:
+        requested_market = (market or self.fallback_market).lower()
+
+        if requested_market in self._INDEXES:
+            normalized = requested_market
+            rows = self._INDEXES[normalized]
+        elif self.return_empty_on_unknown:
+            return []
+        else:
+            normalized = self.fallback_market if self.fallback_market in self._INDEXES else "cn"
+            rows = self._INDEXES[normalized]
+
+        now = int(time.time())
         quotes: List[IndexQuote] = []
         for code, name in rows:
             change_percent = _stable_pct(code + normalized, -2.2, 2.2)
@@ -84,7 +98,7 @@ class MockIndexProvider(IndexProvider):
                     change_percent=change_percent,
                     change_value=change_value,
                     market=normalized,
-                    status="open",
+                    status=self.status_tag,
                     updated_at=now,
                 )
             )
@@ -92,6 +106,9 @@ class MockIndexProvider(IndexProvider):
 
 
 class MockGoldProvider(GoldProvider):
+    def __init__(self, *, status_tag: str = "mock") -> None:
+        self.status_tag = status_tag
+
     def get_gold_quotes(self) -> List[GoldQuote]:
         platforms = ["招商", "浙商", "民生"]
         now = int(time.time())
@@ -106,7 +123,7 @@ class MockGoldProvider(GoldProvider):
                     price=price,
                     change=change,
                     change_percent=change_percent,
-                    status="tradable",
+                    status=self.status_tag,
                     updated_at=now,
                 )
             )
