@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>基金动态预估</title>
+  <style>
+    body{font-family:Arial,"Microsoft YaHei";margin:20px}
+    textarea{width:100%;height:70px}
+    table{border-collapse:collapse;width:100%;margin:10px 0}
+    th,td{border:1px solid #ddd;padding:6px}
+    details{margin:8px 0}
+    input[type=number]{width:120px}
+    .muted{color:#666;font-size:12px}
+    .panel{border:1px solid #e5e5e5;border-radius:8px;padding:12px;margin:10px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .card{border:1px solid #ddd;border-radius:8px;padding:10px;min-width:160px;background:#fafafa}
+    .tabs button{margin-right:8px}
+    .up{color:#d93025}
+    .down{color:#188038}
+    .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:999}
+    .modal{background:#fff;width:min(1000px,92vw);max-height:88vh;overflow:auto;border-radius:10px;padding:14px}
+    .modal-head{display:flex;justify-content:space-between;align-items:center}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+    #navCanvas{width:100%;height:260px;border:1px solid #ddd;border-radius:6px}
+  </style>
+</head>
+<body>
+  <h2>基金持仓动态预估（最新披露持仓）</h2>
+
+  <div class="panel">
+    <h3>行情中心</h3>
+    <div class="tabs">
+      <button onclick="switchMarket('cn')">A股</button>
+      <button onclick="switchMarket('hk')">港股</button>
+      <button onclick="switchMarket('us')">美股</button>
+      <button onclick="refreshMarketAndGold()">刷新指数与黄金</button>
+    </div>
+    <div id="indexCards" class="row"></div>
+  </div>
+
+  <div class="panel">
+    <h3>黄金估值</h3>
+    <div id="goldCards" class="row"></div>
+  </div>
+
+  <p>基金代码（空格/逗号分隔）</p>
+  <textarea id="codes"></textarea><br/>
+  <button onclick="syncPortfolio()">同步基金列表到持仓表</button>
+  <button onclick="savePortfolio()">保存持仓</button>
+  <button onclick="runEstimate()">抓取最新持仓并预估</button>
+  <p class="muted">优先用 akshare 抓持仓（若环境已安装），否则回退 Eastmoney；成本价是纯数值，不带 %。</p>
+
+  <h3>我的持仓（可改持有收益；成本价不带%）</h3>
+  <table id="portfolio">
+    <thead><tr><th>基金代码</th><th>持有份额</th><th>成本价</th><th>当前持有收益(元,可编辑)</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="msg"></div>
+  <p class="muted">首次使用若无持仓数据，将按默认基金代码渲染，可点击“同步基金列表到持仓表”。</p>
+  <h3>预估结果</h3><div id="summary"></div>
+  <h3>计算明细（点开查看）</h3><div id="details"></div>
+
+  <h3>扩展模块占位（后续迭代）</h3>
+  <div id="market-center"></div>
+  <div id="gold-estimator"></div>
+  <div id="fund-detail"></div>
+
+  <div id="detailModalMask" class="modal-mask" onclick="closeFundDetail(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <h3 id="detailTitle">基金详情</h3>
+        <button onclick="closeFundDetail()">关闭</button>
+      </div>
+      <p id="detailMeta" class="muted"></p>
+      <div class="tabs">
+        <button onclick="switchDetailTab('history')">历史业绩</button>
+        <button onclick="switchDetailTab('stage')">阶段涨幅</button>
+        <button onclick="switchDetailTab('nav')">历史净值</button>
+        <button onclick="switchDetailTab('holding')">持仓详情</button>
+      </div>
+      <div id="tab-history" class="tab-content active"></div>
+      <div id="tab-stage" class="tab-content"></div>
+      <div id="tab-nav" class="tab-content">
+        <canvas id="navCanvas" width="940" height="260"></canvas>
+        <div id="navLegend" class="muted"></div>
+      </div>
+      <div id="tab-holding" class="tab-content"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
