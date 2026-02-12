@@ -2,91 +2,135 @@
 <html>
 <head>
   <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>基金动态预估</title>
-  <style>
-    body{font-family:Arial,"Microsoft YaHei";margin:20px}
-    textarea{width:100%;height:70px}
-    table{border-collapse:collapse;width:100%;margin:10px 0}
-    th,td{border:1px solid #ddd;padding:6px}
-    details{margin:8px 0}
-    input[type=number]{width:120px}
-    .muted{color:#666;font-size:12px}
-    .panel{border:1px solid #e5e5e5;border-radius:8px;padding:12px;margin:10px 0}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .card{border:1px solid #ddd;border-radius:8px;padding:10px;min-width:160px;background:#fafafa}
-    .tabs button{margin-right:8px}
-    .up{color:#d93025}
-    .down{color:#188038}
-    .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:999}
-    .modal{background:#fff;width:min(1000px,92vw);max-height:88vh;overflow:auto;border-radius:10px;padding:14px}
-    .modal-head{display:flex;justify-content:space-between;align-items:center}
-    .tab-content{display:none}
-    .tab-content.active{display:block}
-    #navCanvas{width:100%;height:260px;border:1px solid #ddd;border-radius:6px}
-  </style>
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <h2>基金持仓动态预估（最新披露持仓）</h2>
+  <div class="page">
+    <div id="toastArea" class="toast-area"></div>
 
-  <div class="panel">
-    <h3>行情中心</h3>
-    <div class="tabs">
-      <button onclick="switchMarket('cn')">A股</button>
-      <button onclick="switchMarket('hk')">港股</button>
-      <button onclick="switchMarket('us')">美股</button>
-      <button onclick="refreshMarketAndGold()">刷新指数与黄金</button>
-    </div>
-    <div id="indexCards" class="row"></div>
+    <header class="header">
+      <div class="header-title">
+        <h1>FUND TERMINAL · 基金持仓动态预估</h1>
+        <div class="subtle">深色终端视图 · 高密度行情与估值</div>
+      </div>
+      <div class="header-actions">
+        <div id="providerStatus" class="status-pill">DATA: AUTO</div>
+        <button id="themeToggleBtn" onclick="toggleTheme()">切换浅色</button>
+      </div>
+    </header>
+
+    <section class="kpi-row">
+      <article class="kpi-card">
+        <div class="kpi-label">今日预估收益</div>
+        <div id="kpiEstimatePnl" class="kpi-value">—</div>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-label">预估总资产</div>
+        <div id="kpiAssets" class="kpi-value">—</div>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-label">持仓数量</div>
+        <div id="kpiPositions" class="kpi-value">0</div>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-label">数据刷新时间</div>
+        <div id="kpiRefresh" class="kpi-value">—</div>
+      </article>
+    </section>
+
+    <main class="grid-main">
+      <div class="stack">
+        <section class="card">
+          <div class="card-header">
+            <div class="tabs" id="marketTabs">
+              <button class="tab-btn active" data-market="cn" onclick="switchMarket('cn')">A股</button>
+              <button class="tab-btn" data-market="hk" onclick="switchMarket('hk')">港股</button>
+              <button class="tab-btn" data-market="us" onclick="switchMarket('us')">美股</button>
+            </div>
+            <div class="actions">
+              <button id="refreshBtn" onclick="refreshMarketAndGold()">刷新指数与黄金</button>
+              <label class="auto-refresh-toggle">
+                <input id="autoRefreshToggle" type="checkbox" onchange="toggleAutoRefresh(this.checked)" />
+                自动刷新(10s)
+              </label>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="ticker-row ticker-head">
+              <div>名称</div><div class="t-right">点位</div><div class="t-right">涨跌幅</div><div class="t-right">涨跌点</div>
+            </div>
+            <div id="indexCards"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header"><b>黄金估值报价板</b></div>
+          <div class="card-body">
+            <table>
+              <thead><tr><th class="t-left">平台</th><th class="t-right">价格</th><th class="t-right">涨跌</th><th class="t-right">涨跌幅</th></tr></thead>
+              <tbody id="goldCards"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="card">
+          <div class="card-header"><b>我的持仓（可编辑）</b></div>
+          <div class="card-body">
+            <div class="muted">基金代码（空格/逗号分隔）</div>
+            <textarea id="codes"></textarea>
+            <div class="actions" style="margin-top:8px;">
+              <button onclick="syncPortfolio()">同步基金列表到持仓表</button>
+              <button onclick="savePortfolio()">保存持仓</button>
+              <button id="estimateBtn" onclick="runEstimate()">抓取最新持仓并预估</button>
+            </div>
+            <p class="muted">优先用 akshare 抓持仓（若环境已安装），否则回退 Eastmoney；成本价是纯数值，不带 %。</p>
+            <table id="portfolio">
+              <thead><tr><th class="t-left">基金代码</th><th class="t-right">持有份额</th><th class="t-right">成本价</th><th class="t-right">当前持有收益(元,可编辑)</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div id="msg" class="muted"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header"><b>基金估值结果</b></div>
+          <div class="card-body">
+            <div id="summary"></div>
+            <div id="details"></div>
+          </div>
+        </section>
+      </div>
+    </main>
   </div>
-
-  <div class="panel">
-    <h3>黄金估值</h3>
-    <div id="goldCards" class="row"></div>
-  </div>
-
-  <p>基金代码（空格/逗号分隔）</p>
-  <textarea id="codes"></textarea><br/>
-  <button onclick="syncPortfolio()">同步基金列表到持仓表</button>
-  <button onclick="savePortfolio()">保存持仓</button>
-  <button onclick="runEstimate()">抓取最新持仓并预估</button>
-  <p class="muted">优先用 akshare 抓持仓（若环境已安装），否则回退 Eastmoney；成本价是纯数值，不带 %。</p>
-
-  <h3>我的持仓（可改持有收益；成本价不带%）</h3>
-  <table id="portfolio">
-    <thead><tr><th>基金代码</th><th>持有份额</th><th>成本价</th><th>当前持有收益(元,可编辑)</th></tr></thead>
-    <tbody></tbody>
-  </table>
-
-  <div id="msg"></div>
-  <p class="muted">首次使用若无持仓数据，将按默认基金代码渲染，可点击“同步基金列表到持仓表”。</p>
-  <h3>预估结果</h3><div id="summary"></div>
-  <h3>计算明细（点开查看）</h3><div id="details"></div>
-
-  <h3>扩展模块占位（后续迭代）</h3>
-  <div id="market-center"></div>
-  <div id="gold-estimator"></div>
-  <div id="fund-detail"></div>
 
   <div id="detailModalMask" class="modal-mask" onclick="closeFundDetail(event)">
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-head">
-        <h3 id="detailTitle">基金详情</h3>
-        <button onclick="closeFundDetail()">关闭</button>
+        <div>
+          <h3 id="detailTitle" style="margin:0;">基金详情</h3>
+          <p id="detailMeta" class="muted" style="margin:6px 0 0;">-</p>
+        </div>
+        <button class="close-btn" onclick="closeFundDetail()">关闭</button>
       </div>
-      <p id="detailMeta" class="muted"></p>
-      <div class="tabs">
-        <button onclick="switchDetailTab('history')">历史业绩</button>
-        <button onclick="switchDetailTab('stage')">阶段涨幅</button>
-        <button onclick="switchDetailTab('nav')">历史净值</button>
-        <button onclick="switchDetailTab('holding')">持仓详情</button>
+      <div class="modal-body">
+        <div class="tabs">
+          <button class="tab-btn active" data-detail-tab="history" onclick="switchDetailTab('history')">历史业绩</button>
+          <button class="tab-btn" data-detail-tab="stage" onclick="switchDetailTab('stage')">阶段涨幅</button>
+          <button class="tab-btn" data-detail-tab="nav" onclick="switchDetailTab('nav')">历史净值</button>
+          <button class="tab-btn" data-detail-tab="holding" onclick="switchDetailTab('holding')">持仓详情</button>
+        </div>
+        <div id="tab-history" class="tab-content active"></div>
+        <div id="tab-stage" class="tab-content"></div>
+        <div id="tab-nav" class="tab-content">
+          <canvas id="navCanvas" width="940" height="260"></canvas>
+          <div id="navLegend" class="muted"></div>
+        </div>
+        <div id="tab-holding" class="tab-content"></div>
       </div>
-      <div id="tab-history" class="tab-content active"></div>
-      <div id="tab-stage" class="tab-content"></div>
-      <div id="tab-nav" class="tab-content">
-        <canvas id="navCanvas" width="940" height="260"></canvas>
-        <div id="navLegend" class="muted"></div>
-      </div>
-      <div id="tab-holding" class="tab-content"></div>
     </div>
   </div>
 

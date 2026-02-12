@@ -9,16 +9,30 @@
 ## 安装依赖
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 ## 启动
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m pip install -r requirements.txt || { echo "pip install failed"; exit 1; }
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 浏览器访问：`http://localhost:8000`
+
+## 受限环境启动方式（无依赖/离线测试）
+
+当环境无法安装 `fastapi/uvicorn`（例如代理或离线限制）时，可使用标准库启动：
+
+```bash
+python app/serve_stdlib.py
+```
+
+说明：
+- 该模式仅用于无依赖/离线测试与页面预览。
+- 完整功能与生产部署仍建议使用 `python -m pip install -r requirements.txt` + `python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`。
+
 
 ## Provider 配置（环境变量）
 
@@ -80,7 +94,8 @@ positions(
 ### 启动
 
 ```bash
-HOLDINGS_PROVIDER=mock QUOTE_PROVIDER=mock uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m pip install -r requirements.txt || { echo "pip install failed"; exit 1; }
+HOLDINGS_PROVIDER=mock QUOTE_PROVIDER=mock python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ### curl 验收
@@ -120,7 +135,8 @@ curl -s "http://127.0.0.1:8000/api/estimate?codes=270042,006479"
 
 ```bash
 # 启动（示例）
-HOLDINGS_PROVIDER=mock QUOTE_PROVIDER=mock INDEX_PROVIDER=mock GOLD_PROVIDER=mock uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m pip install -r requirements.txt || { echo "pip install failed"; exit 1; }
+HOLDINGS_PROVIDER=mock QUOTE_PROVIDER=mock INDEX_PROVIDER=mock GOLD_PROVIDER=mock python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # 指数
 curl -s "http://127.0.0.1:8000/api/indexes?market=cn"
@@ -159,7 +175,8 @@ curl -s "http://127.0.0.1:8000/api/gold/realtime"
 
 ```bash
 # 启动
-HOLDINGS_PROVIDER=mock QUOTE_PROVIDER=mock INDEX_PROVIDER=mock GOLD_PROVIDER=mock uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m pip install -r requirements.txt || { echo "pip install failed"; exit 1; }
+HOLDINGS_PROVIDER=mock QUOTE_PROVIDER=mock INDEX_PROVIDER=mock GOLD_PROVIDER=mock python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # 基金详情
 curl -s "http://127.0.0.1:8000/api/funds/270042/detail"
