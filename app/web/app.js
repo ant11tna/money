@@ -136,7 +136,7 @@ async function bootstrap() {
   } else {
     document.getElementById('codes').value = defaultCodes.join(' ');
     initPortfolio(defaultCodes);
-    document.getElementById('msg').innerText = '暂无已保存持仓，可点击“同步基金列表到持仓表”';
+    document.getElementById('msg').innerText = '暂无已保存持仓，可点击“从输入导入到持仓”';
   }
 
   renderKpi({ positions: portfolioResp.positions.length, timeText: new Date().toLocaleTimeString() });
@@ -153,9 +153,9 @@ async function loadDefaultCodes() {
   }
 }
 
-async function fetchPortfolio() {
+async function fetchPortfolio(activeOnly = 1) {
   try {
-    const resp = await fetch('/api/portfolio');
+    const resp = await fetch(`/api/portfolio?active_only=${activeOnly}`);
     return await resp.json();
   } catch (_) {
     return { positions: [], updated_at: 0 };
@@ -163,8 +163,30 @@ async function fetchPortfolio() {
 }
 
 function initPortfolio(codes) {
-  const positions = codes.map(code => ({ code, name: '', share: 0, cost: 0, current_profit: 0 }));
+  const positions = codes.map(code => ({ code, name: '', share: 0, cost: 0, current_profit: 0, is_active: 1 }));
   initPortfolioFromPositions(positions);
+}
+
+function positionRowHtml(p) {
+  const isActive = asNumber(p.is_active || 1) === 1;
+  return `<td><input class='code' value='${p.code || ''}'/></td>
+    <td><input class='name' value='${p.name || ''}'/></td>
+    <td><input type='number' class='share t-right' step='0.01' value='${asNumber(p.share)}'/></td>
+    <td><input type='number' class='cost t-right' step='0.0001' value='${asNumber(p.cost)}'/></td>
+    <td><input type='number' class='profit t-right' step='0.01' value='${asNumber(p.current_profit)}'/></td>
+    <td class='status'>${isActive ? '活跃' : '已归档'}</td>
+    <td>
+      <button type='button' onclick='toggleArchiveRow(this)'>${isActive ? '归档' : '恢复'}</button>
+      <button type='button' onclick='deleteRow(this)'>删除</button>
+    </td>`;
+}
+
+function addPositionRow() {
+  const tb = document.querySelector('#portfolio tbody');
+  const tr = document.createElement('tr');
+  tr.dataset.active = '1';
+  tr.innerHTML = positionRowHtml({ code: '', name: '', share: 0, cost: 0, current_profit: 0, is_active: 1 });
+  tb.appendChild(tr);
 }
 
 function initPortfolioFromPositions(positions) {
@@ -172,10 +194,8 @@ function initPortfolioFromPositions(positions) {
   tb.innerHTML = '';
   positions.forEach(p => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input class='code' value='${p.code || ''}'/></td>
-      <td><input type='number' class='share t-right' step='0.01' value='${asNumber(p.share)}'/></td>
-      <td><input type='number' class='cost t-right' step='0.0001' value='${asNumber(p.cost)}'/></td>
-      <td><input type='number' class='profit t-right' step='0.01' value='${asNumber(p.current_profit)}'/></td>`;
+    tr.dataset.active = String(asNumber(p.is_active || 1) === 1 ? 1 : 0);
+    tr.innerHTML = positionRowHtml(p);
     tb.appendChild(tr);
   });
 }
@@ -187,12 +207,22 @@ function readPortfolio() {
     if (!code) return;
     list.push({
       code,
+      name: tr.querySelector('.name').value.trim(),
       share: asNumber(tr.querySelector('.share').value),
       cost: asNumber(tr.querySelector('.cost').value),
       current_profit: asNumber(tr.querySelector('.profit').value),
+      is_active: asNumber(tr.dataset.active || 1) === 1 ? 1 : 0,
     });
   });
   return list;
+}
+
+async function refreshPortfolioUI(msg = '') {
+  const portfolio = await fetchPortfolio(1);
+  initPortfolioFromPositions(portfolio.positions);
+  document.getElementById('codes').value = portfolio.positions.map(p => p.code).join(' ');
+  if (msg) document.getElementById('msg').innerText = msg;
+  renderKpi({ positions: portfolio.positions.length, timeText: new Date().toLocaleTimeString() });
 }
 
 async function syncPortfolio() {
@@ -203,23 +233,44 @@ async function syncPortfolio() {
     body: JSON.stringify({ codes }),
   });
   const data = await resp.json();
-
-  const portfolio = await fetchPortfolio();
-  initPortfolioFromPositions(portfolio.positions);
-  document.getElementById('msg').innerText = data.ok ? `同步完成：${data.count} 条` : '同步失败';
-  renderKpi({ positions: portfolio.positions.length, timeText: new Date().toLocaleTimeString() });
+  await refreshPortfolioUI(data.ok ? `导入完成：${data.count} 条` : '导入失败');
 }
 
 async function savePortfolio() {
-  const rows = readPortfolio();
-  for (const row of rows) {
-    await fetch('/api/portfolio/positions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(row),
-    });
+  const positions = readPortfolio();
+  const resp = await fetch('/api/portfolio/positions/bulk_upsert', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ positions }),
+  });
+  const data = await resp.json();
+  await refreshPortfolioUI(data.ok ? `保存完成：${data.count} 条` : '保存失败');
+}
+
+async function toggleArchiveRow(btn) {
+  const tr = btn.closest('tr');
+  const code = tr?.querySelector('.code')?.value?.trim() || '';
+  if (!code) {
+    showToast('请先填写代码并保存');
+    return;
   }
-  document.getElementById('msg').innerText = `保存完成：${rows.length} 条`;
+  const currentActive = asNumber(tr.dataset.active || 1) === 1;
+  const endpoint = currentActive ? 'archive' : 'activate';
+  const resp = await fetch(`/api/portfolio/positions/${encodeURIComponent(code)}/${endpoint}`, { method: 'POST' });
+  const data = await resp.json();
+  await refreshPortfolioUI(data.ok ? `${code} 已${currentActive ? '归档' : '恢复'}` : '操作失败');
+}
+
+async function deleteRow(btn) {
+  const tr = btn.closest('tr');
+  const code = tr?.querySelector('.code')?.value?.trim() || '';
+  if (!code) {
+    tr.remove();
+    return;
+  }
+  const resp = await fetch(`/api/portfolio/positions/${encodeURIComponent(code)}`, { method: 'DELETE' });
+  const data = await resp.json();
+  await refreshPortfolioUI(data.ok ? `${code} 已删除` : '删除失败');
 }
 
 function switchMarket(market) {
@@ -308,11 +359,12 @@ async function loadGoldQuotes() {
 }
 
 async function runEstimate() {
-  const codes = document.getElementById('codes').value.split(/[\s,，]+/).filter(Boolean);
-  const portfolioResp = await fetchPortfolio();
+  const portfolioResp = await fetchPortfolio(1);
+  const codes = (portfolioResp.positions || []).map(p => p.code).filter(Boolean);
   const portfolioMap = {};
   portfolioResp.positions.forEach(p => { portfolioMap[p.code] = p; });
 
+  document.getElementById('codes').value = codes.join(' ');
   document.getElementById('msg').innerText = '抓取中，请稍候...';
   setLoading('estimateBtn', true, '估值抓取中...');
 
@@ -378,7 +430,7 @@ async function runEstimate() {
   } catch (_) {
     showToast('估值抓取失败，请稍后重试');
   } finally {
-    setLoading('estimateBtn', false, '抓取最新持仓并预估');
+    setLoading('estimateBtn', false, '抓取并预估');
   }
 }
 

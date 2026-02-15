@@ -15,12 +15,32 @@ from app.config import (
     get_gold_provider,
     get_index_provider,
 )
-from app.db import ensure_tables, list_positions, sync_positions, update_position_name_if_empty, upsert_position
-from app.schemas import EstimateResponse, GoldQuote, IndexQuote, PortfolioSyncRequest, PositionUpsertRequest
+from app.db import (
+    bulk_upsert_positions,
+    delete_position,
+    ensure_tables,
+    list_positions,
+    set_position_active,
+    sync_positions,
+    update_position_name_if_empty,
+    upsert_position,
+)
+from app.schemas import (
+    EstimateResponse,
+    GoldQuote,
+    IndexQuote,
+    PortfolioBulkUpsertRequest,
+    PortfolioSyncRequest,
+    PositionUpsertRequest,
+)
 from app.services.estimate import build_fund_detail, estimate_codes
 
 app = FastAPI(title="Fund Dashboard API")
 WEB_DIR = Path(__file__).parent / "web"
+
+
+def _web_file(filename: str, media_type: str | None = None) -> FileResponse:
+    return FileResponse(WEB_DIR / filename, media_type=media_type)
 
 
 @app.on_event("startup")
@@ -30,12 +50,32 @@ def startup() -> None:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+    return _web_file("index.html")
+
+
+@app.head("/")
+def index_head() -> FileResponse:
+    return _web_file("index.html")
 
 
 @app.get("/app.js")
 def app_js() -> FileResponse:
-    return FileResponse(WEB_DIR / "app.js", media_type="application/javascript")
+    return _web_file("app.js", media_type="application/javascript")
+
+
+@app.head("/app.js")
+def app_js_head() -> FileResponse:
+    return _web_file("app.js", media_type="application/javascript")
+
+
+@app.get("/styles.css")
+def styles_css() -> FileResponse:
+    return _web_file("styles.css", media_type="text/css")
+
+
+@app.head("/styles.css")
+def styles_css_head() -> FileResponse:
+    return _web_file("styles.css", media_type="text/css")
 
 
 @app.get("/api/health")
@@ -78,8 +118,8 @@ def api_fund_detail(code: str) -> dict:
     return build_fund_detail(code.strip())
 
 @app.get("/api/portfolio")
-def api_portfolio() -> dict:
-    return list_positions()
+def api_portfolio(active_only: int = Query(default=1)) -> dict:
+    return list_positions(active_only=active_only != 0)
 
 
 @app.post("/api/portfolio/positions")
@@ -94,8 +134,42 @@ def api_upsert_position(payload: PositionUpsertRequest) -> dict:
         share=payload.share,
         cost=payload.cost,
         current_profit=payload.current_profit,
+        is_active=payload.is_active,
     )
     return {"ok": True}
+
+
+@app.post("/api/portfolio/positions/bulk_upsert")
+def api_bulk_upsert_positions(payload: PortfolioBulkUpsertRequest) -> dict:
+    count = bulk_upsert_positions([item.model_dump() for item in payload.positions])
+    return {"ok": True, "count": count}
+
+
+@app.delete("/api/portfolio/positions/{code}")
+def api_delete_position(code: str) -> dict:
+    cleaned = code.strip()
+    if not cleaned:
+        return {"ok": False, "error": "code 不能为空"}
+    ok = delete_position(cleaned)
+    return {"ok": ok}
+
+
+@app.post("/api/portfolio/positions/{code}/archive")
+def api_archive_position(code: str) -> dict:
+    cleaned = code.strip()
+    if not cleaned:
+        return {"ok": False, "error": "code 不能为空"}
+    ok = set_position_active(cleaned, 0)
+    return {"ok": ok}
+
+
+@app.post("/api/portfolio/positions/{code}/activate")
+def api_activate_position(code: str) -> dict:
+    cleaned = code.strip()
+    if not cleaned:
+        return {"ok": False, "error": "code 不能为空"}
+    ok = set_position_active(cleaned, 1)
+    return {"ok": ok}
 
 
 @app.post("/api/portfolio/sync")

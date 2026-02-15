@@ -12,7 +12,16 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from app.config import DEFAULT_FUND_CODES
-from app.db import ensure_tables, list_positions, sync_positions, update_position_name_if_empty, upsert_position
+from app.db import (
+    bulk_upsert_positions,
+    delete_position,
+    ensure_tables,
+    list_positions,
+    set_position_active,
+    sync_positions,
+    update_position_name_if_empty,
+    upsert_position,
+)
 from app.providers.mock import MockGoldProvider, MockIndexProvider
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -29,7 +38,7 @@ def _json(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
     handler.wfile.write(data)
 
 
-def _send_file(handler: BaseHTTPRequestHandler, file_path: Path, content_type: str) -> None:
+def _send_file(handler: BaseHTTPRequestHandler, file_path: Path, content_type: str, body: bool = True) -> None:
     if not file_path.exists():
         _json(handler, 404, {"ok": False, "error": "not found"})
         return
@@ -39,7 +48,8 @@ def _send_file(handler: BaseHTTPRequestHandler, file_path: Path, content_type: s
     handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(content)))
     handler.end_headers()
-    handler.wfile.write(content)
+    if body:
+        handler.wfile.write(content)
 
 
 def _safe_float(value: object) -> float:
@@ -49,6 +59,13 @@ def _safe_float(value: object) -> float:
         return 0.0
 
 
+def _safe_int(value: object, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _fallback_estimate(codes: list[str]) -> dict:
     failures = [f"{code}:stdlib fallback mode" for code in codes]
     return {"results": [], "failures": failures}
@@ -56,6 +73,21 @@ def _fallback_estimate(codes: list[str]) -> dict:
 
 class StdlibHandler(BaseHTTPRequestHandler):
     server_version = "FundStdlibHTTP/1.0"
+
+    def do_HEAD(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/":
+            _send_file(self, WEB_DIR / "index.html", "text/html; charset=utf-8", body=False)
+            return
+        if path == "/app.js":
+            _send_file(self, WEB_DIR / "app.js", "application/javascript; charset=utf-8", body=False)
+            return
+        if path == "/styles.css":
+            _send_file(self, WEB_DIR / "styles.css", "text/css; charset=utf-8", body=False)
+            return
+        self.send_response(404)
+        self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -102,9 +134,9 @@ class StdlibHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/portfolio":
-            _json(self, 200, list_positions())
+            active_only = parse_qs(parsed.query).get("active_only", ["1"])[0]
+            _json(self, 200, list_positions(active_only=active_only != "0"))
             return
-
 
         if path.startswith("/api/funds/") and path.endswith("/detail"):
             code = path[len("/api/funds/") : -len("/detail")].strip().strip("/")
@@ -177,8 +209,34 @@ class StdlibHandler(BaseHTTPRequestHandler):
                 share=_safe_float(payload.get("share", 0)),
                 cost=_safe_float(payload.get("cost", 0)),
                 current_profit=_safe_float(payload.get("current_profit", 0)),
+                is_active=_safe_int(payload.get("is_active"), 1),
             )
             _json(self, 200, {"ok": True})
+            return
+
+        if path == "/api/portfolio/positions/bulk_upsert":
+            positions = payload.get("positions") or []
+            if not isinstance(positions, list):
+                _json(self, 400, {"ok": False, "error": "positions 必须为数组"})
+                return
+            count = bulk_upsert_positions([p for p in positions if isinstance(p, dict)])
+            _json(self, 200, {"ok": True, "count": count})
+            return
+
+        if path.endswith("/archive") and path.startswith("/api/portfolio/positions/"):
+            code = path[len("/api/portfolio/positions/") : -len("/archive")].strip().strip("/")
+            if not code:
+                _json(self, 400, {"ok": False, "error": "code 不能为空"})
+                return
+            _json(self, 200, {"ok": set_position_active(code, 0)})
+            return
+
+        if path.endswith("/activate") and path.startswith("/api/portfolio/positions/"):
+            code = path[len("/api/portfolio/positions/") : -len("/activate")].strip().strip("/")
+            if not code:
+                _json(self, 400, {"ok": False, "error": "code 不能为空"})
+                return
+            _json(self, 200, {"ok": set_position_active(code, 1)})
             return
 
         if path == "/api/portfolio/sync":
@@ -188,6 +246,18 @@ class StdlibHandler(BaseHTTPRequestHandler):
             _json(self, 200, {"ok": True, "count": len(codes)})
             return
 
+        _json(self, 404, {"ok": False, "error": "not found"})
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path.startswith("/api/portfolio/positions/"):
+            code = path[len("/api/portfolio/positions/") :].strip().strip("/")
+            if not code:
+                _json(self, 400, {"ok": False, "error": "code 不能为空"})
+                return
+            _json(self, 200, {"ok": delete_position(code)})
+            return
         _json(self, 404, {"ok": False, "error": "not found"})
 
     def log_message(self, format: str, *args: object) -> None:  # noqa: A003
