@@ -68,10 +68,12 @@
         <section class="card">
           <div class="card-header"><b>黄金估值报价板</b></div>
           <div class="card-body">
-            <table>
+            <div class="table-wrap">
+              <table>
               <thead><tr><th class="t-left">平台</th><th class="t-right">价格</th><th class="t-right">涨跌</th><th class="t-right">涨跌幅</th></tr></thead>
               <tbody id="goldCards"></tbody>
             </table>
+            </div>
           </div>
         </section>
       </div>
@@ -88,10 +90,12 @@
               <button id="estimateBtn" onclick="runEstimate()">抓取最新持仓并预估</button>
             </div>
             <p class="muted">优先用 akshare 抓持仓（若环境已安装），否则回退 Eastmoney；成本价是纯数值，不带 %。</p>
-            <table id="portfolio">
+            <div class="table-wrap">
+              <table id="portfolio">
               <thead><tr><th class="t-left">基金代码</th><th class="t-right">持有份额</th><th class="t-right">成本价</th><th class="t-right">当前持有收益(元,可编辑)</th></tr></thead>
               <tbody></tbody>
             </table>
+            </div>
             <div id="msg" class="muted"></div>
           </div>
         </section>

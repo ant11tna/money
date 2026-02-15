@@ -184,3 +184,42 @@ curl -s "http://127.0.0.1:8000/api/funds/270042/detail"
 # 仍保持兼容
 curl -s "http://127.0.0.1:8000/api/estimate?codes=270042,006479"
 ```
+
+
+## Windows 快速启动
+
+### 推荐方式（FastAPI 正式版）
+
+在 PowerShell 中执行：
+
+```powershell
+.\scripts\run.ps1
+```
+
+脚本会自动完成：创建/激活 `.venv`、安装依赖、设置默认 Provider（`mock`）、并用 `uvicorn` 启动服务。
+
+### 受限方式（stdlib 版本）
+
+```powershell
+.\scripts\run-stdlib.ps1
+```
+
+### 手动方式（FastAPI）
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+$env:HOLDINGS_PROVIDER='mock'
+$env:QUOTE_PROVIDER='mock'
+$env:INDEX_PROVIDER='mock'
+$env:GOLD_PROVIDER='mock'
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+补充：Windows 上如需提升本地并发，可使用：
+
+```powershell
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+```
+

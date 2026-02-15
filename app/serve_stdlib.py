@@ -72,7 +72,18 @@ class StdlibHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/health":
-            _json(self, 200, {"ok": True, "mode": "stdlib"})
+            _json(
+                self,
+                200,
+                {
+                    "ok": True,
+                    "mode": "stdlib",
+                    "holdings_provider": "mock",
+                    "quote_provider": "mock",
+                    "index_provider": "mock",
+                    "gold_provider": "mock",
+                },
+            )
             return
 
         if path == "/api/default-codes":
