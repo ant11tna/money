@@ -1,11 +1,14 @@
 let defaultCodes = [];
+let latestPortfolioPositions = [];
 let currentMarket = 'cn';
+let currentView = 'holdings';
 let currentFundDetail = null;
 let latestEstimateResults = [];
 let autoRefreshTimer = null;
 let isMarketRefreshing = false;
 let previousIndexMap = {};
 let previousGoldMap = {};
+let marketLoadedOnce = false;
 
 function asNumber(v) {
   const n = Number(v);
@@ -64,11 +67,15 @@ function getFlashClass(prevValue, nextValue) {
 }
 
 function toggleAutoRefresh(enabled) {
+  const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+  if (autoRefreshToggle && autoRefreshToggle.checked !== enabled) {
+    autoRefreshToggle.checked = enabled;
+  }
   if (autoRefreshTimer) {
     clearInterval(autoRefreshTimer);
     autoRefreshTimer = null;
   }
-  if (enabled) {
+  if (enabled && currentView === 'market') {
     autoRefreshTimer = setInterval(() => {
       refreshMarketAndGold();
     }, 10000);
@@ -94,10 +101,14 @@ function showToast(message) {
 }
 
 function renderKpi({ estimatePnl = null, totalAsset = null, positions = 0, timeText = '—' } = {}) {
-  document.getElementById('kpiEstimatePnl').innerText = estimatePnl === null ? '—' : formatAmount(estimatePnl);
-  document.getElementById('kpiAssets').innerText = totalAsset === null ? '—' : formatAmount(totalAsset);
-  document.getElementById('kpiPositions').innerText = String(positions);
-  document.getElementById('kpiRefresh').innerText = timeText;
+  const estimateEl = document.getElementById('kpiEstimatePnl');
+  const assetsEl = document.getElementById('kpiAssets');
+  const positionsEl = document.getElementById('kpiPositions');
+  const refreshEl = document.getElementById('kpiRefresh');
+  if (estimateEl) estimateEl.innerText = estimatePnl === null ? '—' : formatAmount(estimatePnl);
+  if (assetsEl) assetsEl.innerText = totalAsset === null ? '—' : formatAmount(totalAsset);
+  if (positionsEl) positionsEl.innerText = String(positions);
+  if (refreshEl) refreshEl.innerText = timeText;
 }
 
 async function loadHealthStatus() {
@@ -126,21 +137,54 @@ async function bootstrap() {
   const autoRefreshToggle = document.getElementById('autoRefreshToggle');
   if (autoRefreshToggle) autoRefreshToggle.checked = false;
   toggleAutoRefresh(false);
-  await Promise.all([loadDefaultCodes(), loadHealthStatus()]);
-  const portfolioResp = await fetchPortfolio();
+  await loadDefaultCodes();
+  await loadHealthStatus();
+  await loadPortfolio();
+  renderAssetsSummary();
 
-  if (portfolioResp.positions.length > 0) {
-    document.getElementById('codes').value = portfolioResp.positions.map(p => p.code).join(' ');
-    initPortfolioFromPositions(portfolioResp.positions);
-    document.getElementById('msg').innerText = '已加载已保存持仓';
-  } else {
-    document.getElementById('codes').value = defaultCodes.join(' ');
-    initPortfolio(defaultCodes);
-    document.getElementById('msg').innerText = '暂无已保存持仓，可点击“从输入导入到持仓”';
+  const initialView = normalizeViewFromHash(location.hash);
+  switchView(initialView || 'holdings', { updateHash: true });
+  window.addEventListener('hashchange', () => {
+    const view = normalizeViewFromHash(location.hash);
+    switchView(view || 'holdings', { updateHash: false });
+  });
+}
+
+function normalizeViewFromHash(hash) {
+  const raw = String(hash || '').replace('#', '').trim().toLowerCase();
+  if (['assets', 'holdings', 'market'].includes(raw)) return raw;
+  return 'holdings';
+}
+
+function switchView(viewName, options = {}) {
+  const nextView = ['assets', 'holdings', 'market'].includes(viewName) ? viewName : 'holdings';
+  currentView = nextView;
+
+  document.querySelectorAll('#mainTabs .tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === nextView);
+  });
+  document.querySelectorAll('.view').forEach(view => {
+    view.classList.toggle('active', view.id === `view-${nextView}`);
+  });
+
+  if (options.updateHash !== false && location.hash !== `#${nextView}`) {
+    location.hash = `#${nextView}`;
   }
 
-  renderKpi({ positions: portfolioResp.positions.length, timeText: new Date().toLocaleTimeString() });
-  await refreshMarketAndGold();
+  if (nextView === 'market') {
+    if (!marketLoadedOnce) {
+      refreshMarketAndGold();
+      marketLoadedOnce = true;
+    }
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    toggleAutoRefresh(Boolean(autoRefreshToggle && autoRefreshToggle.checked));
+  } else {
+    toggleAutoRefresh(false);
+  }
+
+  if (nextView === 'assets') {
+    renderAssetsSummary();
+  }
 }
 
 async function loadDefaultCodes() {
@@ -219,10 +263,30 @@ function readPortfolio() {
 
 async function refreshPortfolioUI(msg = '') {
   const portfolio = await fetchPortfolio(1);
+  latestPortfolioPositions = portfolio.positions || [];
   initPortfolioFromPositions(portfolio.positions);
   document.getElementById('codes').value = portfolio.positions.map(p => p.code).join(' ');
   if (msg) document.getElementById('msg').innerText = msg;
   renderKpi({ positions: portfolio.positions.length, timeText: new Date().toLocaleTimeString() });
+  renderAssetsSummary();
+}
+
+async function loadPortfolio() {
+  const portfolioResp = await fetchPortfolio();
+  latestPortfolioPositions = portfolioResp.positions || [];
+
+  if (portfolioResp.positions.length > 0) {
+    document.getElementById('codes').value = portfolioResp.positions.map(p => p.code).join(' ');
+    initPortfolioFromPositions(portfolioResp.positions);
+    document.getElementById('msg').innerText = '已加载已保存持仓';
+  } else {
+    document.getElementById('codes').value = defaultCodes.join(' ');
+    initPortfolio(defaultCodes);
+    latestPortfolioPositions = defaultCodes.map(code => ({ code, share: 0, cost: 0, current_profit: 0 }));
+    document.getElementById('msg').innerText = '暂无已保存持仓，可点击“从输入导入到持仓”';
+  }
+
+  renderKpi({ positions: portfolioResp.positions.length, timeText: new Date().toLocaleTimeString() });
 }
 
 async function syncPortfolio() {
@@ -278,7 +342,16 @@ function switchMarket(market) {
   document.querySelectorAll('#marketTabs .tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.market === market);
   });
-  loadIndexes(market);
+  const indexSection = document.getElementById('indexSection');
+  const goldSection = document.getElementById('goldSection');
+  const showGold = market === 'gold';
+  if (indexSection) indexSection.classList.toggle('hidden', showGold);
+  if (goldSection) goldSection.classList.toggle('hidden', !showGold);
+  if (showGold) {
+    loadGoldQuotes();
+  } else {
+    loadIndexes(market);
+  }
 }
 
 async function refreshMarketAndGold() {
@@ -286,7 +359,11 @@ async function refreshMarketAndGold() {
   isMarketRefreshing = true;
   setLoading('refreshBtn', true, '刷新中...');
   try {
-    await Promise.all([loadIndexes(currentMarket), loadGoldQuotes()]);
+    if (currentMarket === 'gold') {
+      await loadGoldQuotes();
+    } else {
+      await Promise.all([loadIndexes(currentMarket), loadGoldQuotes()]);
+    }
     renderKpi({
       estimatePnl: latestEstimateResults.reduce((acc, x) => acc + asNumber(x.estimatePnL), 0),
       totalAsset: null,
@@ -297,6 +374,57 @@ async function refreshMarketAndGold() {
     setLoading('refreshBtn', false, '刷新指数与黄金');
     isMarketRefreshing = false;
   }
+}
+
+function renderAssetsSummary() {
+  const positions = latestPortfolioPositions || [];
+  const totalCost = positions.reduce((acc, p) => acc + asNumber(p.share) * asNumber(p.cost), 0);
+  const holdingProfit = positions.reduce((acc, p) => acc + asNumber(p.current_profit), 0);
+  const totalAssetEstimate = positions.length ? totalCost + holdingProfit : null;
+  const todayEstimate = latestEstimateResults.length
+    ? latestEstimateResults.reduce((acc, x) => acc + asNumber(x.estimatePnL), 0)
+    : null;
+
+  const setValue = (id, value) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerText = value === null ? '—' : formatAmount(value);
+  };
+
+  setValue('assetTotalAsset', totalAssetEstimate);
+  setValue('assetTodayEstimate', todayEstimate);
+  setValue('assetTotalCost', positions.length ? totalCost : null);
+
+  const yesterdayEl = document.getElementById('assetYesterdayPnl');
+  if (yesterdayEl) yesterdayEl.innerText = '—';
+  const realizedEl = document.getElementById('assetRealizedPnl');
+  if (realizedEl) realizedEl.innerText = '—';
+}
+
+const assetsPlaceholderText = {
+  totalAssets: '阶段2将展示总资产历史曲线、资产组成分布与日内变化明细。',
+  yesterdayPnl: '阶段2将接入收益快照并展示昨日收益拆解。',
+  todayEstimate: '阶段2将展示今日预估收益按基金明细与贡献排行。',
+  realizedPnl: '阶段4将接入交易流水，展示已实现收益与卖出明细。',
+  totalCost: '阶段2将展示总成本历史变化与分批投入记录。',
+};
+
+function openAssetsPlaceholder(type) {
+  const titleMap = {
+    totalAssets: '总资产（估算）',
+    yesterdayPnl: '昨日收益',
+    todayEstimate: '今日预估收益',
+    realizedPnl: '已实现收益',
+    totalCost: '总成本 / 总投入',
+  };
+  document.getElementById('placeholderTitle').innerText = titleMap[type] || '指标详情';
+  document.getElementById('placeholderBody').innerText = assetsPlaceholderText[type] || '阶段2将展示历史曲线/明细。';
+  document.getElementById('placeholderModalMask').style.display = 'flex';
+}
+
+function closePlaceholderModal(event) {
+  if (event && event.target && event.target.id !== 'placeholderModalMask') return;
+  document.getElementById('placeholderModalMask').style.display = 'none';
 }
 
 async function loadIndexes(market) {
@@ -393,10 +521,10 @@ async function runEstimate() {
     latestEstimateResults.forEach(r => {
       const pnlClass = numberClass(r.estimatePnL);
       const pctClass = numberClass(r.estimated_pct);
-      html += `<tr><td class='t-left'>${r.code}</td><td class='t-left'>${r.name}</td><td class='t-left'>${r.report_period}</td><td class='t-left'>${r.source}</td>
+      html += `<tr onclick="openFundDetail('${r.code}')" class='clickable-row'><td class='t-left'>${r.code}</td><td class='t-left'>${r.name}</td><td class='t-left'>${r.report_period}</td><td class='t-left'>${r.source}</td>
       <td class='t-right ${pctClass}'>${formatPercent(r.estimated_pct)}</td><td class='t-right'>${formatPercent(r.matched_weight)}</td>
       <td class='t-right'>${formatAmount((portfolioMap[r.code] || {}).current_profit || 0)}</td><td class='t-right ${pnlClass}'>${formatAmount(r.estimatePnL)}</td>
-      <td><button onclick="openFundDetail('${r.code}')">详情</button></td></tr>`;
+      <td><button onclick="event.stopPropagation();openFundDetail('${r.code}')">详情</button></td></tr>`;
     });
 
     html += '</tbody></table>';
@@ -427,6 +555,7 @@ async function runEstimate() {
       positions: portfolioResp.positions.length,
       timeText: new Date().toLocaleTimeString(),
     });
+    renderAssetsSummary();
   } catch (_) {
     showToast('估值抓取失败，请稍后重试');
   } finally {
