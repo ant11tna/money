@@ -16,8 +16,8 @@
   --s4: 16px;
   --s5: 24px;
 
-  --r1: 6px;
-  --r2: 10px;
+  --r1: 10px;
+  --r2: 14px;
 
   --font-ui: Inter, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -201,6 +201,11 @@ textarea, input[type='number'], input[type='text'], input {
 }
 textarea { min-height: 68px; }
 
+.table-wrap {
+  border-radius: var(--r2);
+  overflow: hidden;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -254,9 +259,9 @@ tbody tr:hover { background: var(--hover-bg); }
   width: min(1040px, 94vw);
   max-height: 90vh;
   overflow: auto;
+  border-radius: 16px;
   background: var(--bg1);
   border: 1px solid var(--border);
-  border-radius: var(--r2);
   box-shadow: var(--shadow);
 }
 .modal-head {

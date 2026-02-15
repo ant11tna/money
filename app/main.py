@@ -6,7 +6,15 @@ from pathlib import Path
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, JSONResponse
 
-from app.config import DEFAULT_FUND_CODES, get_gold_provider, get_index_provider
+from app.config import (
+    DEFAULT_FUND_CODES,
+    GOLD_PROVIDER,
+    HOLDINGS_PROVIDER,
+    INDEX_PROVIDER,
+    QUOTE_PROVIDER,
+    get_gold_provider,
+    get_index_provider,
+)
 from app.db import ensure_tables, list_positions, sync_positions, update_position_name_if_empty, upsert_position
 from app.schemas import EstimateResponse, GoldQuote, IndexQuote, PortfolioSyncRequest, PositionUpsertRequest
 from app.services.estimate import build_fund_detail, estimate_codes
@@ -32,7 +40,14 @@ def app_js() -> FileResponse:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True}
+    return {
+        "ok": True,
+        "mode": "fastapi",
+        "holdings_provider": HOLDINGS_PROVIDER,
+        "quote_provider": QUOTE_PROVIDER,
+        "index_provider": INDEX_PROVIDER,
+        "gold_provider": GOLD_PROVIDER,
+    }
 
 
 @app.get("/api/default-codes")
