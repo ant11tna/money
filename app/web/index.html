@@ -82,17 +82,18 @@
         <section class="card">
           <div class="card-header"><b>我的持仓（可编辑）</b></div>
           <div class="card-body">
-            <div class="muted">基金代码（空格/逗号分隔）</div>
+            <div class="muted">基金代码输入（辅助导入，空格/逗号分隔）</div>
             <textarea id="codes"></textarea>
             <div class="actions" style="margin-top:8px;">
-              <button onclick="syncPortfolio()">同步基金列表到持仓表</button>
+              <button onclick="syncPortfolio()">从输入导入到持仓</button>
+              <button onclick="addPositionRow()">+ 添加标的</button>
               <button onclick="savePortfolio()">保存持仓</button>
-              <button id="estimateBtn" onclick="runEstimate()">抓取最新持仓并预估</button>
+              <button id="estimateBtn" onclick="runEstimate()">抓取并预估</button>
             </div>
-            <p class="muted">优先用 akshare 抓持仓（若环境已安装），否则回退 Eastmoney；成本价是纯数值，不带 %。</p>
+            <p class="muted">持仓表为唯一真相；输入框仅用于批量导入代码。</p>
             <div class="table-wrap">
               <table id="portfolio">
-              <thead><tr><th class="t-left">基金代码</th><th class="t-right">持有份额</th><th class="t-right">成本价</th><th class="t-right">当前持有收益(元,可编辑)</th></tr></thead>
+              <thead><tr><th class="t-left">基金代码</th><th class="t-left">名称</th><th class="t-right">持有份额</th><th class="t-right">成本价</th><th class="t-right">当前持有收益(元)</th><th class="t-left">状态</th><th class="t-left">操作</th></tr></thead>
               <tbody></tbody>
             </table>
             </div>

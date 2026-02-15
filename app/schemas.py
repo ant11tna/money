@@ -16,6 +16,11 @@ class PositionUpsertRequest(BaseModel):
     share: float = 0
     cost: float = 0
     current_profit: float = 0
+    is_active: Optional[int] = None
+
+
+class PortfolioBulkUpsertRequest(BaseModel):
+    positions: List[PositionUpsertRequest]
 
 
 class PortfolioSyncRequest(BaseModel):
