@@ -14,12 +14,15 @@ python -m pip install -r requirements.txt
 
 ## 启动
 
+### FastAPI 模式（推荐）
+
 ```bash
-python -m pip install -r requirements.txt || { echo "pip install failed"; exit 1; }
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m pip install -r requirements.txt
+HOLDINGS_PROVIDER=mock QUOTE_PROVIDER=mock INDEX_PROVIDER=mock GOLD_PROVIDER=mock \
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-浏览器访问：`http://localhost:8000`
+浏览器访问：`http://127.0.0.1:8000`
 
 ## 受限环境启动方式（无依赖/离线测试）
 
@@ -79,47 +82,86 @@ positions(
 - `POST /api/portfolio/positions` -> 单条持仓 upsert
 - `POST /api/portfolio/sync` -> 按 codes 同步入库（不存在则插入，已存在不改 share/cost/current_profit）
 
-## 前端使用流程（阶段 C）
+## 前端使用流程（V2 阶段1：三大页面/视图）
+
+页面仍为「单 HTML + 原生 JS」，通过顶部 Tab（并支持 hash）切换：
+
+- `#assets`：资产统计（汇总卡片 + 下钻占位弹窗）
+- `#holdings`：持仓（我的持仓 + 基金估值结果）
+- `#market`：行情中心（A股/港股/美股/黄金）
+
+支持直接地址切换：
+
+- `http://127.0.0.1:8000/#assets`
+- `http://127.0.0.1:8000/#holdings`
+- `http://127.0.0.1:8000/#market`
+
+说明：
+
+- 行情中心中的自动刷新(10s)只在 `#market` 视图生效，离开视图自动停止。
+- 资产统计卡片可点击打开占位弹窗（阶段2/4预留历史曲线与交易流水能力）。
+
+## 持仓操作流程
 
 1. 页面初始化：优先加载数据库持仓；若为空则使用默认 codes 渲染并提示可同步。
-2. 点击“同步基金列表到持仓表”：调用 `/api/portfolio/sync`。
+2. 点击“从输入导入到持仓”：调用 `/api/portfolio/sync`。
 3. 编辑份额/成本/当前持有收益后点击“保存持仓”：调用 `/api/portfolio/positions`。
-4. 点击“抓取最新持仓并预估”：
+4. 点击“抓取并预估”：
    - 调用 `/api/estimate`
    - 同时读取 `/api/portfolio`
    - 计算 `estimatePnL = share * cost * (estimated_pct/100)` 并展示。
 
-## 阶段 C 验收命令
+## V2 阶段1 验收命令
 
 ### 启动
 
 ```bash
-python -m pip install -r requirements.txt || { echo "pip install failed"; exit 1; }
-HOLDINGS_PROVIDER=mock QUOTE_PROVIDER=mock python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m pip install -r requirements.txt
+HOLDINGS_PROVIDER=mock QUOTE_PROVIDER=mock INDEX_PROVIDER=mock GOLD_PROVIDER=mock \
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 ### curl 验收
 
 ```bash
+# 基础静态资源
+curl -I http://127.0.0.1:8000/
+curl -I http://127.0.0.1:8000/app.js
+curl -I http://127.0.0.1:8000/styles.css
+
+# 首页资源引用
+curl -s http://127.0.0.1:8000/ | head -n 40
+
 # 1) 健康检查
 curl -s http://127.0.0.1:8000/api/health
 
-# 2) 同步代码到持仓库
+# 2) 点击/切换 “行情中心”（#market）后可验证
+curl -s "http://127.0.0.1:8000/api/indexes?market=cn"
+curl -s "http://127.0.0.1:8000/api/gold/realtime"
+
+# 3) 点击/切换 “持仓”（#holdings）后可验证
 curl -s -X POST http://127.0.0.1:8000/api/portfolio/sync \
   -H 'Content-Type: application/json' \
   -d '{"codes":["270042","006479"]}'
 
-# 3) 保存一条持仓
+# 4) 保存一条持仓
 curl -s -X POST http://127.0.0.1:8000/api/portfolio/positions \
   -H 'Content-Type: application/json' \
   -d '{"code":"270042","name":"广发纳指","share":1000,"cost":1.25,"current_profit":88.5}'
 
-# 4) 查看持仓
+# 5) 查看持仓
 curl -s http://127.0.0.1:8000/api/portfolio
 
-# 5) 发起估值（结构保持 {results, failures}）
+# 6) 发起估值（结构保持 {results, failures}）
 curl -s "http://127.0.0.1:8000/api/estimate?codes=270042,006479"
 ```
+
+手工验收路径：
+
+1. 访问 `/`，默认进入“持仓”页（或根据 hash 进入对应视图）。
+2. 点击“行情中心”，验证指数/黄金切换、手动刷新与自动刷新行为。
+3. 点击“持仓”，验证保存持仓、运行估值、基金详情弹窗。
+4. 点击“资产统计”，验证每张卡片均可点击并打开占位弹窗。
 
 
 ## 新增：行情中心 + 黄金估值 API
@@ -222,4 +264,3 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```powershell
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
 ```
-

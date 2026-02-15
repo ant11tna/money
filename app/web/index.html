@@ -21,95 +21,129 @@
       </div>
     </header>
 
-    <section class="kpi-row">
-      <article class="kpi-card">
-        <div class="kpi-label">今日预估收益</div>
-        <div id="kpiEstimatePnl" class="kpi-value">—</div>
-      </article>
-      <article class="kpi-card">
-        <div class="kpi-label">预估总资产</div>
-        <div id="kpiAssets" class="kpi-value">—</div>
-      </article>
-      <article class="kpi-card">
-        <div class="kpi-label">持仓数量</div>
-        <div id="kpiPositions" class="kpi-value">0</div>
-      </article>
-      <article class="kpi-card">
-        <div class="kpi-label">数据刷新时间</div>
-        <div id="kpiRefresh" class="kpi-value">—</div>
-      </article>
+    <nav class="main-tabs" id="mainTabs">
+      <button class="tab-btn" data-view="assets" onclick="switchView('assets')">资产统计</button>
+      <button class="tab-btn active" data-view="holdings" onclick="switchView('holdings')">持仓</button>
+      <button class="tab-btn" data-view="market" onclick="switchView('market')">行情中心</button>
+    </nav>
+
+    <section id="view-assets" class="view">
+      <div class="view-header">
+        <h2>资产统计</h2>
+        <span class="muted">阶段1：汇总指标 + 下钻入口占位</span>
+      </div>
+      <section class="kpi-row assets-kpi-row">
+        <article class="kpi-card clickable-card" onclick="openAssetsPlaceholder('totalAssets')">
+          <div class="kpi-label">总资产（估算）</div>
+          <div id="assetTotalAsset" class="kpi-value">—</div>
+          <div class="muted">成本 + 当前持有收益</div>
+        </article>
+        <article class="kpi-card clickable-card" onclick="openAssetsPlaceholder('yesterdayPnl')">
+          <div class="kpi-label">昨日收益</div>
+          <div id="assetYesterdayPnl" class="kpi-value">—</div>
+          <div class="muted">阶段2接入快照</div>
+        </article>
+        <article class="kpi-card clickable-card" onclick="openAssetsPlaceholder('todayEstimate')">
+          <div class="kpi-label">今日预估收益</div>
+          <div id="assetTodayEstimate" class="kpi-value">—</div>
+          <div class="muted">来自实时估值聚合</div>
+        </article>
+        <article class="kpi-card clickable-card" onclick="openAssetsPlaceholder('realizedPnl')">
+          <div class="kpi-label">已实现收益</div>
+          <div id="assetRealizedPnl" class="kpi-value">—</div>
+          <div class="muted">阶段4接入交易流水</div>
+        </article>
+        <article class="kpi-card clickable-card" onclick="openAssetsPlaceholder('totalCost')">
+          <div class="kpi-label">总成本 / 总投入</div>
+          <div id="assetTotalCost" class="kpi-value">—</div>
+          <div class="muted">持仓 share × cost 汇总</div>
+        </article>
+      </section>
     </section>
 
-    <main class="grid-main">
-      <div class="stack">
-        <section class="card">
-          <div class="card-header">
-            <div class="tabs" id="marketTabs">
-              <button class="tab-btn active" data-market="cn" onclick="switchMarket('cn')">A股</button>
-              <button class="tab-btn" data-market="hk" onclick="switchMarket('hk')">港股</button>
-              <button class="tab-btn" data-market="us" onclick="switchMarket('us')">美股</button>
+    <section id="view-holdings" class="view active">
+      <div class="view-header">
+        <h2>持仓</h2>
+        <div class="asset-tags">
+          <button class="chip-btn active" type="button">基金</button>
+          <button class="chip-btn" type="button" disabled title="阶段2后支持">股票（即将支持）</button>
+          <button class="chip-btn" type="button" disabled title="阶段2后支持">黄金（即将支持）</button>
+        </div>
+      </div>
+
+      <main class="grid-main">
+        <div class="stack">
+          <section class="card">
+            <div class="card-header"><b>我的持仓（可编辑）</b></div>
+            <div class="card-body">
+              <div class="muted">基金代码输入（辅助导入，空格/逗号分隔）</div>
+              <textarea id="codes"></textarea>
+              <div class="actions" style="margin-top:8px;">
+                <button onclick="syncPortfolio()">从输入导入到持仓</button>
+                <button onclick="addPositionRow()">+ 添加标的</button>
+                <button onclick="savePortfolio()">保存持仓</button>
+                <button id="estimateBtn" onclick="runEstimate()">抓取并预估</button>
+              </div>
+              <p class="muted">持仓表为唯一真相；输入框仅用于批量导入代码。</p>
+              <div class="table-wrap">
+                <table id="portfolio">
+                <thead><tr><th class="t-left">基金代码</th><th class="t-left">名称</th><th class="t-right">持有份额</th><th class="t-right">成本价</th><th class="t-right">当前持有收益(元)</th><th class="t-left">状态</th><th class="t-left">操作</th></tr></thead>
+                <tbody></tbody>
+              </table>
+              </div>
+              <div id="msg" class="muted"></div>
             </div>
-            <div class="actions">
-              <button id="refreshBtn" onclick="refreshMarketAndGold()">刷新指数与黄金</button>
-              <label class="auto-refresh-toggle">
-                <input id="autoRefreshToggle" type="checkbox" onchange="toggleAutoRefresh(this.checked)" />
-                自动刷新(10s)
-              </label>
+          </section>
+
+          <section class="card">
+            <div class="card-header"><b>基金估值结果</b></div>
+            <div class="card-body">
+              <div id="summary"></div>
+              <div id="details"></div>
             </div>
+          </section>
+        </div>
+      </main>
+    </section>
+
+    <section id="view-market" class="view">
+      <div class="view-header">
+        <h2>行情中心</h2>
+      </div>
+      <section class="card">
+        <div class="card-header">
+          <div class="tabs" id="marketTabs">
+            <button class="tab-btn active" data-market="cn" onclick="switchMarket('cn')">A股</button>
+            <button class="tab-btn" data-market="hk" onclick="switchMarket('hk')">港股</button>
+            <button class="tab-btn" data-market="us" onclick="switchMarket('us')">美股</button>
+            <button class="tab-btn" data-market="gold" onclick="switchMarket('gold')">黄金</button>
           </div>
-          <div class="card-body">
+          <div class="actions">
+            <button id="refreshBtn" onclick="refreshMarketAndGold()">刷新指数与黄金</button>
+            <label class="auto-refresh-toggle">
+              <input id="autoRefreshToggle" type="checkbox" onchange="toggleAutoRefresh(this.checked)" />
+              自动刷新(10s)
+            </label>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="indexSection">
             <div class="ticker-row ticker-head">
               <div>名称</div><div class="t-right">点位</div><div class="t-right">涨跌幅</div><div class="t-right">涨跌点</div>
             </div>
             <div id="indexCards"></div>
           </div>
-        </section>
-
-        <section class="card">
-          <div class="card-header"><b>黄金估值报价板</b></div>
-          <div class="card-body">
+          <div id="goldSection" class="hidden">
             <div class="table-wrap">
               <table>
-              <thead><tr><th class="t-left">平台</th><th class="t-right">价格</th><th class="t-right">涨跌</th><th class="t-right">涨跌幅</th></tr></thead>
-              <tbody id="goldCards"></tbody>
-            </table>
+                <thead><tr><th class="t-left">平台</th><th class="t-right">价格</th><th class="t-right">涨跌</th><th class="t-right">涨跌幅</th></tr></thead>
+                <tbody id="goldCards"></tbody>
+              </table>
             </div>
           </div>
-        </section>
-      </div>
-
-      <div class="stack">
-        <section class="card">
-          <div class="card-header"><b>我的持仓（可编辑）</b></div>
-          <div class="card-body">
-            <div class="muted">基金代码输入（辅助导入，空格/逗号分隔）</div>
-            <textarea id="codes"></textarea>
-            <div class="actions" style="margin-top:8px;">
-              <button onclick="syncPortfolio()">从输入导入到持仓</button>
-              <button onclick="addPositionRow()">+ 添加标的</button>
-              <button onclick="savePortfolio()">保存持仓</button>
-              <button id="estimateBtn" onclick="runEstimate()">抓取并预估</button>
-            </div>
-            <p class="muted">持仓表为唯一真相；输入框仅用于批量导入代码。</p>
-            <div class="table-wrap">
-              <table id="portfolio">
-              <thead><tr><th class="t-left">基金代码</th><th class="t-left">名称</th><th class="t-right">持有份额</th><th class="t-right">成本价</th><th class="t-right">当前持有收益(元)</th><th class="t-left">状态</th><th class="t-left">操作</th></tr></thead>
-              <tbody></tbody>
-            </table>
-            </div>
-            <div id="msg" class="muted"></div>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="card-header"><b>基金估值结果</b></div>
-          <div class="card-body">
-            <div id="summary"></div>
-            <div id="details"></div>
-          </div>
-        </section>
-      </div>
-    </main>
+        </div>
+      </section>
+    </section>
   </div>
 
   <div id="detailModalMask" class="modal-mask" onclick="closeFundDetail(event)">
@@ -135,6 +169,18 @@
           <div id="navLegend" class="muted"></div>
         </div>
         <div id="tab-holding" class="tab-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="placeholderModalMask" class="modal-mask" onclick="closePlaceholderModal(event)">
+    <div class="modal placeholder-modal" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <h3 id="placeholderTitle" style="margin:0;">指标详情</h3>
+        <button class="close-btn" onclick="closePlaceholderModal()">关闭</button>
+      </div>
+      <div class="modal-body">
+        <p id="placeholderBody" class="muted">阶段2将展示历史曲线/明细。</p>
       </div>
     </div>
   </div>

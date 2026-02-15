@@ -123,11 +123,23 @@ body[data-theme='light'] .toast {
   font-family: var(--font-mono);
 }
 
+.main-tabs {
+  display: flex;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin-bottom: var(--s4);
+  padding: 0 var(--s1);
+  border-bottom: 1px solid var(--border);
+}
+
 .kpi-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--s3);
   margin-bottom: var(--s4);
+}
+.assets-kpi-row {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 .kpi-card {
   background: var(--bg1);
@@ -145,6 +157,48 @@ body[data-theme='light'] .toast {
   gap: var(--s4);
 }
 .stack { display: flex; flex-direction: column; gap: var(--s4); }
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+}
+
+.view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.view-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.asset-tags {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.chip-btn {
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.chip-btn.active {
+  border-color: #62a4ff;
+  color: #62a4ff;
+}
+
+.chip-btn:disabled {
+  opacity: 0.5;
+}
 
 .card {
   background: var(--bg1);
@@ -226,6 +280,20 @@ tbody tr:hover { background: var(--hover-bg); }
 .up { color: var(--up); }
 .down { color: var(--down); }
 .muted { color: var(--muted); }
+
+.hidden { display: none; }
+
+.clickable-card {
+  cursor: pointer;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.placeholder-modal {
+  width: min(680px, 92vw);
+}
 
 .ticker-row {
   display: grid;
